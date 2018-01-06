@@ -13,6 +13,7 @@ The goal of this project is to write a software pipeline to identify the lane bo
 
 # RELEVANT FILES
 [Detailed writeup](https://github.com/josahe/CarND-Advanced-Lane-Lines/blob/master/advanced_lane_finding.md)
+
 [Notebook](https://github.com/josahe/CarND-Advanced-Lane-Lines/blob/master/advanced_lane_finding.ipynb)
 
 ### Classes
