@@ -58,13 +58,13 @@ To detect lane lines in an image, we could use a simple canny edge-detection alg
 
 HSV (left) and HLS (right) colour spaces are commonly used in image analysis.
 
-![png](report_images/hsv_hls_colorspaces.png)
+![png](output_images/hsv_hls_colorspaces.png)
 
 We can take advantage of isolating the channels from these colour spaces to provide a more consistent contrast between lane lines and everything else, from one frame to the next.
 
 We will take the following RGB image as an example.
 
-![jpg](report_images/test3.jpg)
+![jpg](output_images/test3.jpg)
 
 Then the same image, using the HLS (above) and HSV (below) colour spaces, is broken out into the constituent channels.
 
