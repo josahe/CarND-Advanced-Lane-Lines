@@ -41,10 +41,10 @@ class ImageTransforms(object):
                                [x_br, y_br]])
 
         # Destination coordinates for perspective transforms
-        self.dst = np.float32([[x_bl, self.image_shape[0]],
-                               [x_bl, 0],
-                               [x_br, 0],
-                               [x_br, self.image_shape[0]]])
+        self.dst = np.float32([[x_bl+100, self.image_shape[0]],
+                               [x_bl+100, 0],
+                               [x_br-100, 0],
+                               [x_br-100, self.image_shape[0]]])
 
     def __calculate_best_fit(self, images):
         poly_coeffs=[]
@@ -89,7 +89,7 @@ class ImageTransforms(object):
         lines = hf.draw_lines(image, poly_coeffs)
         return hf.overlay_img(lines, image)
 
-    def sobel(self, image, dim='x', ksize=5):
+    def sobel(self, image, dim='x', ksize=7):
         if dim == 'x':
             sobel = cv2.Sobel(image, cv2.CV_64F, 1, 0, ksize=ksize)
         elif dim == 'y':
@@ -136,5 +136,15 @@ class ImageTransforms(object):
             return sx_binary
 
         binary = np.zeros_like(s_sobelx)
-        binary[((s_binary==1) & (v_binary==1)) | ((sx_binary==1) & (vx_binary==1))] = 1
+        binary[(s_binary==1) | (v_binary==1)] = 1
+
+        bins = np.bincount(binary.flatten())
+        black = bins[0]
+        white = bins[1]
+        ratio = white/(white+black)*100
+
+        if ratio > 5.:
+            binary = np.zeros_like(s_sobelx)
+            binary[((s_binary==1) & (v_binary==1)) | ((sx_binary==1) & (vx_binary==1))] = 1
+
         return binary

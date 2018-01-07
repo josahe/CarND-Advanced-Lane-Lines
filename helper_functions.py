@@ -2,17 +2,18 @@ import numpy as np
 import cv2
 from matplotlib import pyplot as plt
 
-def visualise(images, titles, nrows, ncols, gray=False):
+def visualise(images, titles, nrows, ncols):
     f, axarr = plt.subplots(nrows, ncols)#, figsize=(20,10))
     if not (nrows == ncols == 1):
         for i in range(0, nrows, ncols):
             for j in range(0, ncols):
                 idx = i+j
-                if gray is False:
+                try:
                     axarr[i, j].imshow(images[idx])
-                else:
-                    axarr[i, j].imshow(images[idx], cmap='gray')
-                axarr[i, j].set_title(titles[idx])
+                    axarr[i, j].set_title(titles[idx])
+                except IndexError:
+                    axarr[j].imshow(images[idx])
+                    axarr[j].set_title(titles[idx])
         plt.subplots_adjust(left=0., right=1, top=0.9, bottom=0.)
     else:
         axarr.imshow(images)

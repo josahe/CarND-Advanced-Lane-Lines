@@ -3,39 +3,45 @@ import cv2
 from collections import deque
 
 class LineTracking(object):
-    def __init__(self, image_transforms, lookahead_counter_size=1, smoothing_buffer_size=1):
+    def __init__(self, image_transforms, smoothing_buffer_size=1):
         # Calibrated ImageTransform object
         self.image_transforms = image_transforms
-        # The number of frames to drop before performing a fresh search for the line
-        self.lookahead_counter_size = lookahead_counter_size
         # The size of the frame buffer for smoothing (averaging) of measurements
         self.smoothing_buffer_size = smoothing_buffer_size
+
+        # x values averaged over the last n iterations
+        self.left_best_x = None
+        self.right_best_x = None
 
         # polynomial coefficients averaged over the last n iterations
         self.left_best_fit = None
         self.right_best_fit = None
+
+        # polynomial coefficients of last n iterations
         self.left_fit_buffer = deque(self.smoothing_buffer_size*[[np.nan, np.nan, np.nan]],
                                      self.smoothing_buffer_size)
         self.right_fit_buffer = deque(self.smoothing_buffer_size*[[np.nan, np.nan, np.nan]],
                                       self.smoothing_buffer_size)
 
+        # car position relative to lane
+        self.line_base_pos = None
         self.lane_midpoint = None
         self.image_centre = self.image_transforms.image_shape[1]/2
 
         # Define conversions in x and y from pixels space to meters
-        self.ym_per_pix = 30/720 # meters per pixel in y dimension
-        self.xm_per_pix = 3.7/700 # meters per pixel in x dimension
+        self.ym_per_pix = 20/720 # meters per pixel in y dimension
+        self.xm_per_pix = 3.7/896 # meters per pixel in x dimension
 
         # was the line detected in the last iteration?
         self.detected = False
         self.counter = 0
         self.nframe = 0
+        self.lost_lane_count = 0
+
         # radius of curvature of the line in some units
         self.left_curverad = None
         self.right_curverad = None
         self.radius_of_curvature = None
-        # distance in meters of vehicle center from the line
-        self.line_base_pos = None
 
         ## Left lane
 
@@ -72,13 +78,7 @@ class LineTracking(object):
             self.sliding_window_start(binary_warped)
             self.detected = True
         else:
-            try:
-                self.sliding_window_optimised(binary_warped)
-            except IndexError:
-                self.counter += 1
-                if self.counter == self.lookahead_counter_size:
-                    self.detected = False
-                    self.counter = 0
+            self.sliding_window_optimised(binary_warped)
 
     def sliding_window_simple(self, binary_warped):
         self.sliding_window_start(binary_warped)
@@ -153,11 +153,25 @@ class LineTracking(object):
         rightx = nonzerox[right_lane_inds]
         righty = nonzeroy[right_lane_inds]
 
-        self.lane_midpoint = leftx[0] + (rightx[0]-leftx[0]) / 2
+        try:
+            # Fit a second order polynomial to each lane line
+            left_current_fit = np.polyfit(lefty, leftx, 2)
+            right_current_fit = np.polyfit(righty, rightx, 2)
+            self.lost_lane_count = 0
+        except TypeError:
+            self.lost_lane_count += 1
+            if self.lost_lane_count > self.smoothing_buffer_size:
+                raise ValueError('Could not find lane lines for '+
+                                  str(self.smoothing_buffer_size)+
+                                  ' consecutive frames')
+            left_current_fit = [np.nan, np.nan, np.nan]
+            right_current_fit = [np.nan, np.nan, np.nan]
+            self.detected = False
 
-        # Fit a second order polynomial to each
-        left_current_fit = np.polyfit(lefty, leftx, 2)
-        right_current_fit = np.polyfit(righty, rightx, 2)
+        if self.sanity_check_radius(left_current_fit, right_current_fit, binary_warped) is not True:
+            left_current_fit = [np.nan, np.nan, np.nan]
+            right_current_fit = [np.nan, np.nan, np.nan]
+            self.detected = False
 
         self.left_fit_buffer.append(left_current_fit)
         self.right_fit_buffer.append(right_current_fit)
@@ -167,8 +181,10 @@ class LineTracking(object):
 
          # Generate x and y values for plotting
         self.ploty = np.linspace(0, binary_warped.shape[0]-1, binary_warped.shape[0])
-        self.left_best_fit = self.left_best_fit[0]*self.ploty**2 + self.left_best_fit[1]*self.ploty + self.left_best_fit[2]
-        self.right_best_fit = self.right_best_fit[0]*self.ploty**2 + self.right_best_fit[1]*self.ploty + self.right_best_fit[2]
+        self.left_best_x = self.left_best_fit[0]*self.ploty**2 + self.left_best_fit[1]*self.ploty + self.left_best_fit[2]
+        self.right_best_x = self.right_best_fit[0]*self.ploty**2 + self.right_best_fit[1]*self.ploty + self.right_best_fit[2]
+
+        self.lane_midpoint = self.left_best_x[-1] + (self.right_best_x[-1] - self.left_best_x[-1]) / 2
 
     def sliding_window_optimised(self, binary_warped):
         """Assuming image is binary warped and sliding_window method
@@ -192,11 +208,25 @@ class LineTracking(object):
         rightx = nonzerox[right_lane_inds]
         righty = nonzeroy[right_lane_inds]
 
-        self.lane_midpoint = leftx[0] + (rightx[0]-leftx[0])/2
+        try:
+            # Fit a second order polynomial to each lane line
+            left_current_fit = np.polyfit(lefty, leftx, 2)
+            right_current_fit = np.polyfit(righty, rightx, 2)
+            self.lost_lane_count = 0
+        except TypeError:
+            self.lost_lane_count += 1
+            if self.lost_lane_count > self.smoothing_buffer_size:
+                raise ValueError('Could not find lane lines for '+
+                                  str(self.smoothing_buffer_size)+
+                                  ' consecutive frames')
+            left_current_fit = [np.nan, np.nan, np.nan]
+            right_current_fit = [np.nan, np.nan, np.nan]
+            self.detected = False
 
-        # Fit a second order polynomial to each
-        left_current_fit = np.polyfit(lefty, leftx, 2)
-        right_current_fit = np.polyfit(righty, rightx, 2)
+        if self.sanity_check_radius(left_current_fit, right_current_fit, binary_warped) is not True:
+            left_current_fit = [np.nan, np.nan, np.nan]
+            right_current_fit = [np.nan, np.nan, np.nan]
+            self.detected = False
 
         self.left_fit_buffer.append(left_current_fit)
         self.right_fit_buffer.append(right_current_fit)
@@ -206,8 +236,35 @@ class LineTracking(object):
 
         # Generate x and y values for plotting
         self.ploty = np.linspace(0, binary_warped.shape[0]-1, binary_warped.shape[0])
-        self.left_best_fit = self.left_best_fit[0]*self.ploty**2 + self.left_best_fit[1]*self.ploty + self.left_best_fit[2]
-        self.right_best_fit = self.right_best_fit[0]*self.ploty**2 + self.right_best_fit[1]*self.ploty + self.right_best_fit[2]
+        self.left_best_x = self.left_best_fit[0]*self.ploty**2 + self.left_best_fit[1]*self.ploty + self.left_best_fit[2]
+        self.right_best_x = self.right_best_fit[0]*self.ploty**2 + self.right_best_fit[1]*self.ploty + self.right_best_fit[2]
+
+        self.lane_midpoint = self.left_best_x[-1] + (self.right_best_x[-1] - self.left_best_x[-1]) / 2
+
+    def sanity_check_radius(self, left_current_fit, right_current_fit, binary_warped):
+        threshold = 500
+
+        check_ploty = np.linspace(0, binary_warped.shape[0]-1, binary_warped.shape[0])
+        check_left_x = left_current_fit[0]*check_ploty**2 + left_current_fit[1]*check_ploty + left_current_fit[2]
+        check_right_x = right_current_fit[0]*check_ploty**2 + right_current_fit[1]*check_ploty + right_current_fit[2]
+
+        if(self.left_best_x is not None and np.abs(np.mean(check_left_x) - np.mean(self.left_best_x)) > threshold or
+           self.right_best_x is not None and np.abs(np.mean(check_right_x) - np.mean(self.right_best_x)) > threshold):
+            return False
+        return True
+
+    def sanity_check_offset(self, left_current_fit, right_current_fit, binary_warped):
+        threshold = 500
+
+        check_ploty = np.linspace(0, binary_warped.shape[0]-1, binary_warped.shape[0])
+        check_left_x = left_current_fit[0]*check_ploty**2 + left_current_fit[1]*check_ploty + left_current_fit[2]
+        check_right_x = right_current_fit[0]*check_ploty**2 + right_current_fit[1]*check_ploty + right_current_fit[2]
+
+        check_lane_midpoint = check_left_x[-1] + (check_right_x[-1] - check_left_x[-1]) / 2
+
+        if self.lane_midpoint is not None and np.abs(check_lane_midpoint - self.lane_midpoint) > threshold:
+            return False
+        return True
 
     def measure_curvature(self, true_scale=True):
         """Determine the curvature of the lane and vehicle position with respect to center.
@@ -215,8 +272,8 @@ class LineTracking(object):
         # Define y-value where we want radius of curvature
         # I'll choose the maximum y-value, corresponding to the bottom of the image
         y_eval = np.max(self.ploty)
-        left_curverad = ((1 + (2*self.left_best_fit[0]*y_eval + self.left_best_fit[1])**2)**1.5) / np.absolute(2*self.left_best_fit[0])
-        right_curverad = ((1 + (2*self.right_best_fit[0]*y_eval + self.right_best_fit[1])**2)**1.5) / np.absolute(2*self.right_best_fit[0])
+        left_curverad = ((1 + (2*self.left_best_x[0]*y_eval + self.left_best_x[1])**2)**1.5) / np.absolute(2*self.left_best_x[0])
+        right_curverad = ((1 + (2*self.right_best_x[0]*y_eval + self.right_best_x[1])**2)**1.5) / np.absolute(2*self.right_best_x[0])
         if true_scale is False:
             self.left_curverad = left_curverad
             self.right_curverad = right_curverad
@@ -224,23 +281,15 @@ class LineTracking(object):
             self.line_base_pos = (self.image_centre - self.lane_midpoint)
             return
 
-        #x = a*(y**2) +b*y+c
-        #mx and my are the scale for the x and y axis, respectively (in meters/pixel)
-        #x = mx / (my ** 2) *a*(y**2)+(mx/my)*b*y+c
-
         # Fit new polynomials to x,y in world space
-        left_fit_cr = np.polyfit(self.ploty*self.ym_per_pix, self.left_best_fit*self.xm_per_pix, 2)
-        right_fit_cr = np.polyfit(self.ploty*self.ym_per_pix, self.right_best_fit*self.xm_per_pix, 2)
+        left_fit_cr = np.polyfit(self.ploty*self.ym_per_pix, self.left_best_x*self.xm_per_pix, 2)
+        right_fit_cr = np.polyfit(self.ploty*self.ym_per_pix, self.right_best_x*self.xm_per_pix, 2)
         # Calculate the new radii of curvature
         self.left_curverad = ((1 + (2*left_fit_cr[0]*y_eval*self.ym_per_pix + left_fit_cr[1])**2)**1.5) / np.absolute(2*left_fit_cr[0])
         self.right_curverad = ((1 + (2*right_fit_cr[0]*y_eval*self.ym_per_pix + right_fit_cr[1])**2)**1.5) / np.absolute(2*right_fit_cr[0])
 
         self.radius_of_curvature = (self.left_curverad + self.right_curverad)/2
         self.line_base_pos = (self.image_centre - self.lane_midpoint)*self.xm_per_pix
-
-        #if np.abs(self.left_curverad - self.right_curverad) > 1000:
-        #    print('Large difference between left and right curve measurements')
-        #    print("Left: "+str(self.left_curverad)+" | Right: "+str(self.right_curverad))
 
     def warp_lanes_back(self, image):
         """Warp the detected lane boundaries back onto the original image.
@@ -251,8 +300,8 @@ class LineTracking(object):
         color_warp = np.dstack((warp_zero, warp_zero, warp_zero))
 
         # Recast the x and y points into usable format for cv2.fillPoly()
-        pts_left = np.array([np.transpose(np.vstack([self.left_best_fit, self.ploty]))])
-        pts_right = np.array([np.flipud(np.transpose(np.vstack([self.right_best_fit, self.ploty])))])
+        pts_left = np.array([np.transpose(np.vstack([self.left_best_x, self.ploty]))])
+        pts_right = np.array([np.flipud(np.transpose(np.vstack([self.right_best_x, self.ploty])))])
         pts = np.hstack((pts_left, pts_right))
 
         # Draw the lane onto the warped blank image
