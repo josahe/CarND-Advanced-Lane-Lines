@@ -207,5 +207,3 @@ Then, the sliding window is performed and every 15 frames the curvature and lane
 ## Final thoughts
 
 The hardest part was setting the threshold values to generate consistent binary images of the lane lines. I spent most of my time on this project getting the values right. I would explore colour spaces even more as I think this area is an important starting point.
-
-I couldn't get an optimised sliding window to work. Given more time I would revisit this and try the convolution approach. I could also provide smoother lane detection by applying a low-pass filter to prevent spurious curvature values caused by difficult frames.
