@@ -112,14 +112,15 @@ The class `ImageTransforms` (see image_transforms.py for implementation details)
 
 ```python
 image = cv2.imread('./test_images/straight_lines1.jpg')
-transforms = ImageTransforms(image)
+undistorted = cc.undistort_image(image)
+transforms = ImageTransforms(undistorted)
 ```
 
 These images show this process. From left to right: Binary image of straight lane lines; Hough lines drawn on original image; Our 4 source coordinates (blue, orange, green and red dots)
 
 ![png](output_images/perspective_transform_1.png)
 
-The destination coordinates are set such that the new image forms parallel lane lines. The blue and red dots retain the same coordinates. The orange dot's x coordinate takes on the same value as the blue dot's x coordinate, and the y coordinate is given a value of zero. Likewise with the green dot, respecting the red dot's x coordinate.
+The destination coordinates are set such that the new image forms parallel lane lines. The blue and red dots retain the same y coordinates and the x coordinates are each moved into the centre of the image by 100 pixels to ensure any extreme curvature is not inadvertantly cropped. The orange dot's x coordinate takes on the same value as the blue dot's x coordinate, and the y coordinate is given a value of zero. Likewise with the green dot, respecting the red dot's x coordinate.
 
 ![png](output_images/perspective_transform_2.png)
 
@@ -130,8 +131,10 @@ Now we have source and destination coordinates, any image of lane lines can be t
 ```python
 image_straight = cv2.imread('./test_images/straight_lines1.jpg')
 image_curved = cv2.imread('./test_images/test_lines1.jpg')
-transforms = ImageTransforms(image_straight)
-binary_curved = transforms.pipeline(image_curved, 'binary')
+straight_undistorted = cc.undistort_image(image_straight)
+curved_undistorted = cc.undistort_image(image_curved)
+transforms = ImageTransforms(straight_undistorted)
+binary_curved = transforms.pipeline(curved_undistorted, 'binary')
 image_transformed = transforms.perspective_transform(binary_curved)
 ```
 
@@ -159,7 +162,45 @@ The lane can be filled in using `cv2.fillPoly()` and warped back onto the origin
 
 ---
 
-## Video stream example
+## Pipeline
+
+The final pipeline for processing a video stream is added below. New ```ImageTransforms``` and ```LineTracking``` classes are instantiated for the task.
+
+```python
+line_tracking=LineTracking(ImageTransforms(images_straight_undistorted),smoothing_buffer_size=7)
+def process_frame(image):
+    line_tracking.nframe+=1
+    undistorted = cc.undistort_image(image)
+    warped = line_tracking.image_transforms.perspective_transform(undistorted)
+    binary_warped = line_tracking.image_transforms.pipeline(warped)
+    line_tracking.sliding_window(binary_warped)
+    if line_tracking.nframe%15==0:
+        line_tracking.measure_curvature()
+    undistorted = line_tracking.text(undistorted, "Radius: "+str(line_tracking.radius_of_curvature), 100)
+    undistorted = line_tracking.text(undistorted, "Offset: "+str(line_tracking.line_base_pos)+' m', 200)
+    return line_tracking.warp_lanes_back(undistorted)
+```
+
+The pipeline starts by increasing the frame count and undistorting the image. The undistorted image is transformed to a bird's-eye view and then binary thresholded.
+
+To increase the robustness of the thresholding under varying light and with varying surface conditions/colour, one of two thresholds are chosen. Under certain circumstances, the first condition, ```(s_binary==1) | (v_binary==1)```, picks up too much information, and the lane lines get buried in noise. If this is detected, by checking the percentage of white pixels, then a more restrictive threshold is chosen. This seems to work quite well in most scenarios.
+
+```python
+binary = np.zeros_like(s_sobelx)
+binary[(s_binary==1) | (v_binary==1)] = 1
+
+bins = np.bincount(binary.flatten())
+black = bins[0]
+white = bins[1]
+ratio = white/(white+black)*100
+if ratio > 5.:
+    binary = np.zeros_like(s_sobelx)
+    binary[((s_binary==1) & (v_binary==1)) | ((sx_binary==1) & (vx_binary==1))] = 1
+```
+
+Then, the sliding window is performed and every 15 frames the curvature and lane offset values are calculated, to make the values more readable during playback. Finally, the lane detection overlay is warped back on to the undistorted image.
+
+### Example
 
 ![gif](output_images/video_stream.gif)
 
