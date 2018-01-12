@@ -1,22 +1,28 @@
-# INTRODUCTION
-The goal of this project is to write a software pipeline to identify the lane boundaries in a video from a front-facing camera on a car. 
+# Advanced Lane Finding
+> An image processing pipeline to identify lane boundaries
 
-### Steps
-* Compute the camera calibration matrix and distortion coefficients given a set of chessboard images.
-* Apply a distortion correction to raw images.
-* Use color transforms, gradients, etc., to create a thresholded binary image.
-* Apply a perspective transform to rectify binary image ("birds-eye view").
-* Detect lane pixels and fit to find the lane boundary.
-* Determine the curvature of the lane and vehicle position with respect to center.
-* Warp the detected lane boundaries back onto the original image.
-* Output visual display of the lane boundaries and numerical estimation of lane curvature and vehicle position.
+## INTRODUCTION
+The goal of this project is to write a software pipeline that identifies the lane boundaries in a video taken from a front-facing camera on a car.
 
-# RELEVANT FILES
-[Detailed writeup](https://github.com/josahe/CarND-Advanced-Lane-Lines/blob/master/advanced_lane_finding.md)
+This project was undertaken as part of the [Udacity Self-Driving Car NanoDegree](https://eu.udacity.com/course/self-driving-car-engineer-nanodegree--nd013).
 
-[Notebook](https://github.com/josahe/CarND-Advanced-Lane-Lines/blob/master/advanced_lane_finding.ipynb)
+## HOW TO USE
+### Project dependencies
+You can follow the guide explained here to setup a working environment.
+* https://github.com/udacity/CarND-Term1-Starter-Kit
 
-### Classes
-* CameraCorrection (camera_correction.py)
-* ImageTransforms (image_transforms.py)
-* LineTracking (line_tracking.py)
+### Jupyter Notebooks
+The included notebook demonstrates how to use the project code.
+* [advanced_lane_finding.ipynb](advanced_lane_finding.ipynb)
+
+## RELEVANT LINKS
+#### Project writeup
+* [writeup.md](writeup.md)
+
+#### Original project repo
+* https://github.com/udacity/CarND-Advanced-Lane-Lines
+
+## RELEVANT FILES
+* [camera_correction.py](camera_correction.py)
+* [image_transforms.py](image_transforms.py)
+* [line_tracking.py](line_tracking.py)

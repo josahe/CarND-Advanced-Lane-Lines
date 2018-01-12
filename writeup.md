@@ -1,7 +1,6 @@
 # Advanced Lane Finding Project
 
-The goals / steps of this project are the following:
-
+The steps of this project are the following:
 * Compute the camera calibration matrix and distortion coefficients given a set of chessboard images
 * Apply a distortion correction to raw images
 * Use color transforms, gradients, etc., to create a thresholded binary image
@@ -14,7 +13,6 @@ The goals / steps of this project are the following:
 ---
 
 ## Camera Calibration
-
 ### Introduction
 
 Image distortion occurs when a camera looks at 3D objects in the real world and transforms them into a 2D image. This transformation isn’t perfect. More information can be found here: https://en.wikipedia.org/wiki/Distortion_(optics)
@@ -22,14 +20,11 @@ Image distortion occurs when a camera looks at 3D objects in the real world and 
 Before using a camera image, we must undo this distortion so that the information we infer from it is accurate. To correct for the distortion unique to a given camera lense, we can take pictures of images whose 2D shapes are known and calculate the difference. This difference is the correction factor, which can be applied to all subsequence camera images to undistort them.
 
 ### Chessboard images
-
 A known 2D shape is a chessboard. If we take multiple pictures of this shape, with varying angles, distances, and with different parts of the lense, we will capture the characteristics of our lense distortion.
 
 ![png](output_images/output_6_0.png)
 
-
 ### Camera matrix and distortion coefficients
-
 The OpenCV library provides camera calibration functions that compute the camera matrix and distortion coefficients using corners detected in an array of chessboad images. These functions are wrapped up in a class called `CameraCorrection`.
 
 ```python
@@ -41,7 +36,6 @@ cc.calibrate_camera()
 The first function `find_corners()` iterates through each image and returns a list of found corners using `cv2.findChessboardCorners()`. The second function `calibrate_camera()` passes the found corners to `cv2.calibrateCamera()`. With each found set of corners the OpenCV function is also passed a set of fixed (x, y, z=0) coordinates that represent a 2D view of a chessboard as it is known. This function returns the matrix and coefficients that can then undistort any image.
 
 ### Distortion correction
-
 Using OpenCV again, we can use the matrix and coefficients calculated in `calibrate_camera()` and undistort any image, using the `cv2.undistort()` function. As an example, we can see here one of the chessboard images being corrected.
 
 ![png](output_images/output_10_0.png)
@@ -49,13 +43,10 @@ Using OpenCV again, we can use the matrix and coefficients calculated in `calibr
 ---
 
 ## Thresholded binary images
-
 ### Introduction
-
 To detect lane lines in an image, we could use a simple canny edge-detection algorithm to reduce our image to stark lines. However, with varying environmental conditions such as bright light, dark shadows, and different lane colours, we will need a more robust method. The following section highlights some methods used to improve the lane detection accuracy.
 
 ### Colour transforms
-
 HSV (left) and HLS (right) colour spaces are commonly used in image analysis.
 
 ![png](output_images/hsv_hls_colorspaces.png)
@@ -75,7 +66,6 @@ We can see from this image that the s (saturation) channel from HLS and the v (v
 I go on to use these channels in my processing pipeline.
 
 ### Gradients and binary thresholds
-
 We can get binary threshold images using the v and s channels to maximise the contrast between lane lines and the road surface. By selecting appropriate thresholds, above and below which the image is blacked out, we are left with only those pixel regions that lie within a region containing lane lines. The extra information present in some of these pictures (such as the trees) can be masked out later in the processing pipeline.
 
 The following images were taken from the same example image in the previous section.
@@ -97,13 +87,10 @@ Finally, by combining (bitwise OR) the two outputs from the previous binary thre
 ---
 
 ## Perspective transforms
-
 ### Introduction
-
 A perspective transform maps a set of coordinates in an image to a different set of coordinates. For the purposes of lane detection, we want to transforming the perspective of the front-facing camera to a bird’s-eye view. This is useful for calculating the true curvature of the lane lines in an image.
 
 ### Source and destination coordinates
-
 To transform the image, we need two sets of coordinates. We are interested in having a 2D-like, bird's-eye view of the lane where after transforming a straight lane, the lane lines appear parallel. Therefore, the first set of coordinates will take the shape of an isosceles trapezoid that bounds the straight lane lines in our front-facing camera.
 
 Instead of finding these coordinates manually, we could use a binary image of straight lane lines, calculate the coefficients of a 1st degree polynomial that describes each lane line, and then take two points on each line as the source coordinates for our transform.
@@ -125,7 +112,6 @@ The destination coordinates are set such that the new image forms parallel lane 
 ![png](output_images/perspective_transform_2.png)
 
 ### Applying perspective transform on curved lines
-
 Now we have source and destination coordinates, any image of lane lines can be transformed to a bird's-eye view.
 
 ```python
@@ -143,7 +129,6 @@ image_transformed = transforms.perspective_transform(binary_curved)
 ---
 
 ## Calculating lane curvature and vehicle position
-
 Now we can use the bird's-eye view of the lane lines to measure the curvature of the lane.
 
 A class called `LineTracking` (in line_tracked.py) is used to calculate lane curvature and vehicle position and to keep a record of previous frame data for using with a video stream.
@@ -163,7 +148,6 @@ The lane can be filled in using `cv2.fillPoly()` and warped back onto the origin
 ---
 
 ## Pipeline
-
 The final pipeline for processing a video stream is added below. New ```ImageTransforms``` and ```LineTracking``` classes are instantiated for the task.
 
 ```python
@@ -201,9 +185,7 @@ if ratio > 5.:
 Then, the sliding window is performed and every 15 frames the curvature and lane offset values are calculated, to make the values more readable during playback. Finally, the lane detection overlay is warped back on to the undistorted image.
 
 ### Example
-
 ![gif](output_images/video_stream.gif)
 
 ## Final thoughts
-
 The hardest part was setting the threshold values to generate consistent binary images of the lane lines. I spent most of my time on this project getting the values right. I would explore colour spaces even more as I think this area is an important starting point.
